@@ -1,62 +1,61 @@
 pipeline {
-    agent any
+agent any
 
-    environment {
-        IMAGE_NAME = "jenkins-html-app"
-        CONTAINER_NAME = "html_container"
-    }
+```
+environment {
+    IMAGE_NAME = "apache-web"
+    IMAGE_TAG  = "latest"
+    CONTAINER_NAME = "apache-container"
+}
 
-    stages {
+stages {
 
-        stage('Check & Install Docker') {
-            steps {
-                sh '''
-                if ! command -v docker >/dev/null 2>&1; then
-                    echo "Docker not found. Installing..."
-                    sudo apt update
-                    sudo apt install -y docker.io
-                    sudo systemctl start docker
-                    sudo systemctl enable docker
-                    sudo usermod -aG docker jenkins
-                else
-                    echo "Docker already installed"
-                fi
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t $IMAGE_NAME .'
-            }
-        }
-
-        stage('Stop Old Container') {
-            steps {
-                sh '''
-                if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
-                    docker stop $CONTAINER_NAME
-                    docker rm $CONTAINER_NAME
-                fi
-                '''
-            }
-        }
-
-        stage('Run Docker Container') {
-            steps {
-                sh '''
-                docker run -d \
-                --name $CONTAINER_NAME \
-                -p 8081:80 \
-                $IMAGE_NAME
-                '''
-            }
+    stage('Checkout Code') {
+        steps {
+            checkout scm
         }
     }
 
-    post {
-        success {
-            echo "Application deployed successfully!"
+    stage('Build Docker Image') {
+        steps {
+            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
         }
     }
+
+    stage('Stop Old Container') {
+        steps {
+            sh '''
+            if [ "$(docker ps -aq -f name=${CONTAINER_NAME})" ]; then
+                docker stop ${CONTAINER_NAME}
+                docker rm ${CONTAINER_NAME}
+            fi
+            '''
+        }
+    }
+
+    stage('Run Docker Container') {
+        steps {
+            sh '''
+            docker run -d \
+            --name ${CONTAINER_NAME} \
+            -p 8080:80 \
+            ${IMAGE_NAME}:${IMAGE_TAG}
+            '''
+        }
+    }
+}
+
+post {
+    success {
+        echo "Docker container deployed successfully"
+    }
+    failure {
+        echo "Pipeline failed"
+    }
+    always {
+        cleanWs()
+    }
+}
+```
+
 }
